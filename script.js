@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "om": {
             title: "Scolarité en Outre-mer",
             date: "2015 - 2024",
-            location: "Tahiti - Nouvelle-Calédonie ",
+            location: "Tahiti - Nouvelle-Calédonie",
             content: `
                 <h4>Contexte</h4>
                 <p>J'ai vécu et étudié pendant près de 10 ans en Nouvelle-Calédonie et Tahiti, où j'ai effectué l'intégralité de mon collège et la majorité de mon lycée et de mon école primaire.</p>
@@ -135,18 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('overlay');
     const closeBtn = document.getElementById('close-btn');
     
-    // Éléments internes
     const pTitle = document.getElementById('panel-title');
     const pDate = document.getElementById('panel-date');
     const pLocation = document.getElementById('panel-location');
     const pBody = document.getElementById('panel-body');
     
-    // Sélection du pied de page du panneau (où se trouve le bouton)
+    // Pied de page (contenant le bouton)
     const pFooter = document.querySelector('.panel-footer');
 
-    // Fonction unifiée pour ouvrir Formation OU Projet
+    // Fonction unifiée
     function openPanel(type, id) {
         let data;
+
+        // --- MASQUER LE BOUTON PARTOUT (Formations ET Projets) ---
+        if(pFooter) pFooter.style.display = 'none'; 
 
         if (type === 'formation') {
             data = formationsData[id];
@@ -158,9 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pLocation.textContent = data.location;
             pBody.innerHTML = data.content;
 
-            // CACHER le bouton pour les formations (BUT, Scolarité, Bac)
-            if(pFooter) pFooter.style.display = 'none';
-
         } else if (type === 'project') {
             data = projectsData[id];
             if(!data) return;
@@ -169,9 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pDate.textContent = data.subtitle;
             pLocation.style.display = 'none';
             pBody.innerHTML = data.description;
-
-            // AFFICHER le bouton pour les projets
-            if(pFooter) pFooter.style.display = 'block';
         }
 
         sidePanel.classList.add('active');
@@ -185,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.style.overflow = 'auto';
     }
 
-    // Clic sur les Formations
+    // Clic Timeline
     document.querySelectorAll('.timeline-item .clickable').forEach(item => {
         item.addEventListener('click', function() {
             const parent = this.closest('.timeline-item');
@@ -194,57 +190,88 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Clic sur les Projets
-    document.querySelectorAll('.project-card').forEach(card => {
-        card.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
+    // Clic Projets (Délégué pour gérer le carrousel qui bouge le DOM)
+    document.querySelector('.carousel-track').addEventListener('click', function(e) {
+        // On cherche la carte la plus proche de l'élément cliqué
+        const card = e.target.closest('.project-card');
+        if (card) {
+            const id = card.getAttribute('data-id');
             openPanel('project', id);
-        });
+        }
     });
 
     closeBtn.addEventListener('click', closePanel);
     overlay.addEventListener('click', closePanel);
 
     // ==========================================
-    // 4. LOGIQUE CARROUSEL
+    // 4. LOGIQUE CARROUSEL INFINI (NOUVEAU)
     // ==========================================
     const track = document.querySelector('.carousel-track');
-    const cards = document.querySelectorAll('.project-card');
     const prevButton = document.querySelector('.prev-btn');
     const nextButton = document.querySelector('.next-btn');
 
-    if (track && cards.length > 0) {
-        let currentIndex = 0;
+    if (track && track.children.length > 0) {
+        let isTransitioning = false;
 
+        // Fonction pour calculer la largeur dynamique (carte + gap)
         const getCardWidth = () => {
-            return cards[0].offsetWidth + 30; 
+            const card = track.querySelector('.project-card');
+            // On récupère le gap du CSS (calculé)
+            const style = window.getComputedStyle(track);
+            const gap = parseFloat(style.gap) || 30; // 30 par défaut si non trouvé
+            return card.offsetWidth + gap;
         };
 
-        const updateCarousel = () => {
-            const amountToMove = getCardWidth() * currentIndex;
-            track.style.transform = `translateX(-${amountToMove}px)`;
-        };
-
+        // --- BOUTON SUIVANT (DÉFILEMENT INFINI) ---
         nextButton.addEventListener('click', () => {
-            const containerWidth = document.querySelector('.carousel-container').offsetWidth;
-            const visibleCards = Math.floor(containerWidth / cards[0].offsetWidth);
-            
-            if (currentIndex < (cards.length - visibleCards)) {
-                currentIndex++;
-                updateCarousel();
-            } else {
-                currentIndex = 0;
-                updateCarousel();
-            }
+            if (isTransitioning) return; // Empêche le spam clic
+            isTransitioning = true;
+
+            const cardWidth = getCardWidth();
+
+            // 1. On applique l'animation vers la gauche
+            track.style.transition = 'transform 0.5s ease-in-out';
+            track.style.transform = `translateX(-${cardWidth}px)`;
+
+            // 2. Une fois l'animation finie (500ms)
+            setTimeout(() => {
+                // On prend le premier élément et on le met à la fin (DOM Manipulation)
+                track.appendChild(track.firstElementChild);
+                
+                // On coupe l'animation pour remettre le track à 0 instantanément
+                track.style.transition = 'none';
+                track.style.transform = 'translateX(0)';
+                
+                isTransitioning = false;
+            }, 500); 
         });
 
+        // --- BOUTON PRÉCÉDENT (DÉFILEMENT INFINI) ---
         prevButton.addEventListener('click', () => {
-            if (currentIndex > 0) {
-                currentIndex--;
-                updateCarousel();
-            }
-        });
+            if (isTransitioning) return;
+            isTransitioning = true;
 
-        window.addEventListener('resize', updateCarousel);
+            const cardWidth = getCardWidth();
+
+            // 1. On coupe l'animation pour préparer le mouvement
+            track.style.transition = 'none';
+            
+            // 2. On prend le DERNIER élément et on le met au DÉBUT
+            track.insertBefore(track.lastElementChild, track.firstElementChild);
+            
+            // 3. On décale le track instantanément vers la gauche pour cacher le changement
+            track.style.transform = `translateX(-${cardWidth}px)`;
+
+            // 4. Petite pause pour que le navigateur applique le changement précédent
+            setTimeout(() => {
+                // 5. On réactive l'animation et on glisse vers 0 (vers la droite)
+                track.style.transition = 'transform 0.5s ease-in-out';
+                track.style.transform = 'translateX(0)';
+            }, 20);
+
+            setTimeout(() => {
+                isTransitioning = false;
+            }, 520);
+        });
     }
 });
